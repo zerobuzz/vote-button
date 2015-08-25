@@ -6,3 +6,6 @@
 *~
 /.browserify-cache.json
 /output.js
+/server/.cabal-sandbox
+/server/dist
+/server/cabal.sandbox.config
