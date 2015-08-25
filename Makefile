@@ -12,4 +12,5 @@ run:
 
 run-browser:
 	export PATH=$(PATH):./node_modules/.bin && pulp build -O --to output.js
+	killall lighttpd >/dev/null 2>&1 || true
 	lighttpd -D -f lighttpd.conf
