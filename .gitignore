@@ -1,11 +1,11 @@
 /bower_components/
 /node_modules/
-/output/
 /.psci*
 /src/.webpack.js
 *~
-/.browserify-cache.json
-/output.js
 /server/.cabal-sandbox
 /server/dist
 /server/cabal.sandbox.config
+/server/.state
+/server/public_html/output/
+/server/public_html/output.js

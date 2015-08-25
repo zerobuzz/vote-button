@@ -35,6 +35,16 @@ import Network.Wai
 import Network.Wai.Handler.Warp (runSettings, setHost, setPort, defaultSettings)
 import Servant.API
 import Servant.Server
+import Servant.Utils.StaticFiles (serveDirectory)
+
+
+-- * config
+
+dbPath :: FilePath
+dbPath = "./.state"
+
+htmlPath :: FilePath
+htmlPath = "./public_html"
 
 
 -- * data types
@@ -53,7 +63,7 @@ $(deriveSafeCopy 0 'base ''DB)
 -- * persistence
 
 openDB :: IO St
-openDB = openLocalStateFrom "./.state" (DB 0)
+openDB = openLocalStateFrom dbPath (DB 0)
 
 getDB :: Query DB DB
 getDB = ask
@@ -69,9 +79,10 @@ $(makeAcidic ''DB ['getDB, 'putDB])
 type Rest =
        "rest" :> Get '[JSON] DB
   :<|> "rest" :> ReqBody '[JSON] DB :> Put '[JSON] ()
+  :<|> Raw
 
 rest :: St -> Server Rest
-rest state = gt :<|> up
+rest state = gt :<|> up :<|> serveDirectory htmlPath
   where
     gt :: EitherT ServantErr IO DB
     gt = query' state GetDB

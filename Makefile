@@ -1,7 +1,8 @@
 PSC=./node_modules/.bin/psc
 PULP=./node_modules/.bin/pulp
+TARGET=./server/public_html
 
-default: run-browser
+default: build-browser
 
 version:
 	$(PSC) --version
@@ -10,7 +11,8 @@ version:
 run:
 	export PATH=$(PATH):./node_modules/.bin && pulp run
 
+build-browser:
+	export PATH=$(PATH):./node_modules/.bin && pulp build -O --to $(TARGET)/output.js
+
 run-browser:
-	export PATH=$(PATH):./node_modules/.bin && pulp build -O --to output.js
-	killall lighttpd >/dev/null 2>&1 || true
-	lighttpd -D -f lighttpd.conf
+	cd server && ./.cabal-sandbox/bin/vote-button
