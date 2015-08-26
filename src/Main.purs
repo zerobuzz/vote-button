@@ -65,3 +65,6 @@ getState = do
   return initialState
 
   -- FIXME: parse the actual value returned from backend!
+
+
+-- next: make everything Aff!  (replace launchAff by runAff and hook callbacks into thermite code.)
