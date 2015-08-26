@@ -1,16 +1,18 @@
 module Main where
 
+import Control.Monad.Aff
 import Control.Monad.Eff
-import Control.Monad.Eff.Console
 import Control.Monad.Eff.Class
+import Control.Monad.Eff.Console
+import Network.HTTP.Affjax (AJAX(..), get)
 import Prelude
 
-import qualified Thermite as T
-import qualified Thermite.Html as T
-import qualified Thermite.Html.Elements as T
-import qualified Thermite.Html.Attributes as A
 import qualified Thermite.Action as T
+import qualified Thermite as T
 import qualified Thermite.Events as T
+import qualified Thermite.Html as T
+import qualified Thermite.Html.Attributes as A
+import qualified Thermite.Html.Elements as T
 import qualified Thermite.Types as T
 
 data Action = Increment | Decrement
@@ -43,6 +45,8 @@ performAction :: T.PerformAction _ DB _ Action
 performAction _ Increment = T.modifyState \o -> { counter: o.counter + 1.0 }
 performAction _ Decrement = T.modifyState \o -> { counter: o.counter - 1.0 }
 
+-- FIXME: sync with server state
+
 spec :: DB -> T.Spec _ DB _ Action
 spec istate = T.simpleSpec istate performAction render
 
@@ -53,5 +57,11 @@ main = do
   T.render component {}
 
 
-getState :: forall eff . Eff eff DB
-getState = return initialState
+getState :: forall ajax eff . Eff (ajax :: AJAX | eff) DB
+getState = do
+  launchAff $ do
+    res <- get "/rest"
+    liftEff $ log $ res.response
+  return initialState
+
+  -- FIXME: parse the actual value returned from backend!

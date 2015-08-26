@@ -11,9 +11,10 @@
     "output"
   ],
   "dependencies": {
+    "purescript-affjax": "~0.6.0",
     "purescript-console": "^0.1.0",
     "purescript-eff": "~0.1.0",
     "purescript-math": "~0.2.0",
-    "purescript-thermite": "~0.8.0"
+    "purescript-thermite": "git://github.com/zerobuzz/purescript-thermite#sort-out-deps"
   }
 }
