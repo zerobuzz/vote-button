@@ -1,9 +1,8 @@
---*- mode: haskell -*-
-
 module Main where
 
 import Control.Monad.Eff
 import Control.Monad.Eff.Console
+import Control.Monad.Eff.Class
 import Prelude
 
 import qualified Thermite as T
