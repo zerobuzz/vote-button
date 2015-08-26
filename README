@@ -1,1 +1,46 @@
 nothing much yet...
+
+
+this is a micro-service for voting.  if you are an app vendor, you can
+use this by importing html, css, js for the vote button and popups,
+and very little extra.
+
+to make this secure, your app, the user, and the vote button service
+need to agree on what is been voted on by whom.  for this, your app
+backend sends a cryptographic token to every occurrance of a vote
+button (there may be several vote buttons for several, say, comments
+that can be up- or down-voted).  this token contains:
+
+ 1. an app id;
+ 2. a unique id of the object voted on; and
+ 3. a unique user id.
+ 4. a validity period.
+ 4. a nonce guaranteeing uniqueness and fighting replay attacks.
+
+your app is responsible for uniqueness and integrity of 2, 3.  1 is
+retrieved from the vote button service via a rest api call during or
+right after deployment of your app, together with a symmetric
+authentication key.
+
+the token is a signed with this symmetric key.
+
+every time a vote is cast, the vote button sends the following items
+to the vote button service:
+
+ 1. the token described above
+ 2. all information from the token without any crypto
+ 3. the vote (the payload)
+
+1 needs to be cryptographically signed off by the backend because the
+backend is responsible for deciding which objects may be voted on by
+which users.  2 is there for redundancy.  if they do not match, the
+vote button service will respond with an error.  this will allow you
+to write your frontend code in a way that makes it as easy as possible
+to prove that tokens will never end up being assigned to the wrong
+objects.
+
+the backend also needs access to the data collected by the voting
+service (e.g. in order to deliver paginated content ordered by
+controversiality).  since this is performance-critical, the data
+should be closely taylored to the respective needs of your app.  not
+much work has been done yet regarding this.
