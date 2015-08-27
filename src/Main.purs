@@ -25,7 +25,7 @@ import qualified Thermite.Html.Attributes as A
 import qualified Thermite.Html.Elements as T
 import qualified Thermite.Types as T
 
-data Action = Increment | Decrement
+data DBAction = Increment | Decrement
 
 data DB = DB { counter :: Number }
 
@@ -41,7 +41,7 @@ instance dbToJSON :: ToJSON DB where
 initialState :: DB
 initialState = DB { counter: 0.0 }
 
-render :: T.Render _ DB _ Action
+render :: T.Render _ DB _ DBAction
 render ctx (DB s) _ _ = T.div' [counter, buttons]
   where
   counter :: T.Html _
@@ -60,24 +60,25 @@ render ctx (DB s) _ _ = T.div' [counter, buttons]
                  [ T.text "Decrement" ]
       ]
 
-performAction :: T.PerformAction _ DB _ Action
-performAction _ Increment = T.modifyState \(DB o) -> DB { counter: o.counter + 1.0 }
-performAction _ Decrement = T.modifyState \(DB o) -> DB { counter: o.counter - 1.0 }
+performAction :: T.PerformAction _ DB _ DBAction
+performAction _ dbAction = do
+  let upd (DB o) = case dbAction of
+        Increment -> DB { counter: o.counter + 1.0 }
+        Decrement -> DB { counter: o.counter - 1.0 }
+  newState <- upd <$> T.getState
+  T.setState newState
+  T.async $ \cb -> runAff throwException return (putState newState) >>= cb
 
--- next: make everything Aff!  (replace launchAff by runAff and hook callbacks into thermite code.)
-
-spec :: DB -> T.Spec _ DB _ Action
+spec :: DB -> T.Spec _ DB _ DBAction
 spec istate = T.simpleSpec istate performAction render
 
 main = do
   log "Hello sailor!"
-  launchAff $ putState (DB { counter: -1.9 })
   runAff throwException
     (\ istate -> do
         let component = T.createClass $ spec istate
         T.render component {})
     getState
-
 
 getState :: forall ajax eff . Aff (ajax :: AJAX | eff) DB
 getState = do
