@@ -49,7 +49,7 @@ htmlPath = "./public_html"
 
 -- * data types
 
-data DB = DB { _counter :: Double }
+data DB = DB { _counter :: Double, _user :: String }
   deriving (Eq, Show, Typeable, Generic)
 
 type St = AcidState DB
@@ -63,7 +63,7 @@ $(deriveSafeCopy 0 'base ''DB)
 -- * persistence
 
 openDB :: IO St
-openDB = openLocalStateFrom dbPath (DB 0)
+openDB = openLocalStateFrom dbPath (DB 0 "")
 
 getDB :: Query DB DB
 getDB = ask

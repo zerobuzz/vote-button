@@ -6,6 +6,8 @@ import Control.Monad.Eff.Class
 import Control.Monad.Eff.Console
 import Control.Monad.Eff.Exception (throwException)
 import Data.Either
+import Data.Foreign hiding (parseJSON)
+import Data.Foreign.Class
 import Data.JSON
 import Data.Maybe
 import Network.HTTP.Affjax
@@ -25,31 +27,57 @@ import qualified Thermite.Html.Attributes as A
 import qualified Thermite.Html.Elements as T
 import qualified Thermite.Types as T
 
-data DBAction = Increment | Decrement
 
-data DB = DB { counter :: Number }
+-- state types
+
+data DB = DB { counter :: Number, user :: String }
+
+instance dbShow :: Show DB where
+  show (DB o) = "[" ++ show o.counter ++ "][" ++ show o.user ++ "]"
 
 instance dbFromJSON :: FromJSON DB where
   parseJSON (JObject o) = do
     i <- o .: "_counter"
-    return $ DB {counter: i}
+    n <- o .: "_user"
+    return $ DB {counter: i, user: n}
   parseJSON _ = fail "DB parse failed."
 
 instance dbToJSON :: ToJSON DB where
-  toJSON (DB { counter: i }) = object ["_counter" .= i]
+  toJSON (DB { counter: i, user: n }) = object ["_counter" .= i, "_user" .= n]
 
 initialState :: DB
-initialState = DB { counter: 0.0 }
+initialState = DB { counter: 0.0, user: "" }
+
+
+-- action types
+
+data DBAction = Increment | Decrement | NewUserName String
+
+data TextAreaEvent = TextAreaEvent String
+
+instance textAreaEventIsForeign :: IsForeign TextAreaEvent where
+  read value = TextAreaEvent <$> (readProp "target" value >>= readProp "value")
+
+newUserName :: T.FormEvent -> DBAction
+newUserName e = case read $ toForeign e of
+  Right (TextAreaEvent n) -> NewUserName n
+
+
+-- render function
 
 render :: T.Render _ DB _ DBAction
-render ctx (DB s) _ _ = T.div' [counter, buttons]
+render ctx s _ _ = T.div' [counter, username, buttons]
   where
   counter :: T.Html _
   counter =
     T.p'
       [ T.text "Value: "
-      , T.text $ show s.counter
+      , T.text $ show s
       ]
+
+  username :: T.Html _
+  username =
+    T.textarea (T.onChange ctx newUserName) []
 
   buttons :: T.Html _
   buttons =
@@ -60,25 +88,22 @@ render ctx (DB s) _ _ = T.div' [counter, buttons]
                  [ T.text "Decrement" ]
       ]
 
+
+-- event handler function
+
 performAction :: T.PerformAction _ DB _ DBAction
 performAction _ dbAction = do
   let upd (DB o) = case dbAction of
-        Increment -> DB { counter: o.counter + 1.0 }
-        Decrement -> DB { counter: o.counter - 1.0 }
+        Increment     -> DB o { counter = o.counter + 1.0 }
+        Decrement     -> DB o { counter = o.counter - 1.0 }
+        NewUserName n -> DB o { user = n }
+
   newState <- upd <$> T.getState
   T.setState newState
   T.async $ \cb -> runAff throwException return (putState newState) >>= cb
 
-spec :: DB -> T.Spec _ DB _ DBAction
-spec istate = T.simpleSpec istate performAction render
 
-main = do
-  log "Hello sailor!"
-  runAff throwException
-    (\ istate -> do
-        let component = T.createClass $ spec istate
-        T.render component {})
-    getState
+-- backend communication
 
 getState :: forall ajax eff . Aff (ajax :: AJAX | eff) DB
 getState = do
@@ -98,3 +123,17 @@ putState state = do
 
   liftEff $ log $ "PUT /_put response: " ++ res.response
   return unit
+
+
+-- main
+
+spec :: DB -> T.Spec _ DB _ DBAction
+spec istate = T.simpleSpec istate performAction render
+
+main = do
+  log "Hello sailor!"
+  runAff throwException
+    (\ istate -> do
+        let component = T.createClass $ spec istate
+        T.render component {})
+    getState
