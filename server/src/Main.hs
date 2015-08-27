@@ -27,7 +27,7 @@ import Control.Monad.Trans.Either
 import Data.Acid
 import Data.Acid.Advanced
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Proxy
+import Data.Proxy (Proxy(Proxy))
 import Data.SafeCopy (deriveSafeCopy, base)
 import Data.Typeable
 import GHC.Generics
@@ -77,18 +77,18 @@ $(makeAcidic ''DB ['getDB, 'putDB])
 -- * rest
 
 type Rest =
-       "rest" :> Get '[JSON] DB
-  :<|> "rest" :> ReqBody '[JSON] DB :> Put '[JSON] ()
+       "_get" :> Get '[JSON] DB
+  :<|> "_put" :> ReqBody '[JSON] DB :> Put '[JSON] ()
   :<|> Raw
 
 rest :: St -> Server Rest
-rest state = gt :<|> up :<|> serveDirectory htmlPath
+rest state = gt :<|> pt :<|> serveDirectory htmlPath
   where
     gt :: EitherT ServantErr IO DB
     gt = query' state GetDB
 
-    up :: DB -> EitherT ServantErr IO ()
-    up = update' state . PutDB
+    pt :: DB -> EitherT ServantErr IO ()
+    pt = update' state . PutDB
 
 
 -- * main
