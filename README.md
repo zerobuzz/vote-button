@@ -1,5 +1,28 @@
-nothing much yet...
 
+
+
+**status: experimental.**
+
+
+
+Installation
+------------
+
+you need to have nodejs and npm installed before you keep on reading.
+the following should get you going (in three different terminals).
+
+```
+1. $ cd core && make init && make run-backend
+2. $ cd favcolors && make init && make run-backend
+3. direct your browser to http://localhost:7000
+```
+
+see Makefile for details.  if it doesn't work out of the box, please
+open a ticket.
+
+
+The secure multi-party protocol (first draft)
+---------------------------------------------
 
 this is a micro-service for voting.  if you are an app vendor, you can
 use this by importing html, css, js for the vote button and popups,
