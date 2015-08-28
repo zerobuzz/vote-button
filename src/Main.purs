@@ -155,6 +155,8 @@ render ctx db@(DB s) _ _ = T.div' [outcome, buttons]
 
                 -- FIXME: if this list grows shorter (because voters withdraw their votes), dangling
                 -- noise is not deleted properly in the rendering.
+                -- this bug is sometimes hard to reproduce.  but it'll be back, be patient.
+                -- possibly related: http://blog.arkency.com/2014/10/react-dot-js-and-dynamic-children-why-the-keys-are-important/
 
               ]
       ]
