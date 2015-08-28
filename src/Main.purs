@@ -106,13 +106,17 @@ countVotes v m = L.length (L.filter (\(Tuple _ v') -> v' == v) (M.toList m))
 -- render function
 
 render :: T.Render _ DB _ DBAction
-render ctx (DB s) _ _ = T.div' [outcome, username, buttons]
+render ctx (DB s) _ _ = T.div' [outcome, buttons]
   where
   outcome :: T.Html _
   outcome = T.div'
     [ T.table'
       [ T.tr' [ T.td' [ T.text "current user:" ]
-              , T.td' [ T.text s.user ] ]
+              , T.td' [ T.textarea (T.onChange ctx newUserName <>
+                                    A.value s.user <>
+                                    A.rows "1") []
+                      ]
+              ]
       , T.tr' [ T.td' [ T.text "aggregated:" ]
               , T.td' [ T.table'
                   [ T.tr' [ T.td' [ T.text "Yay" ],     T.td' [ T.text (show (countVotes Yay     s.votes)) ] ]
@@ -134,10 +138,6 @@ render ctx (DB s) _ _ = T.div' [outcome, username, buttons]
               ]
       ]
     ]
-
-  username :: T.Html _
-  username =
-    T.textarea (T.onChange ctx newUserName) []
 
   buttons :: T.Html _
   buttons =
