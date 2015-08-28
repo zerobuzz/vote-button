@@ -35,9 +35,14 @@ import qualified Thermite.Types as T
 -- next: visualize delegation graph (d3).
 
 
+-- * basic stuff
+
+foreign import getTime :: forall eff . Eff eff String
+
+
 -- state types
 
-data DB = DB { votes :: M.Map String Vote, user :: String }
+data DB = DB { votes :: Votes, user :: String }
 
 instance showDB :: Show DB where
   show (DB o) = "[" ++ show o.votes ++ "][" ++ show o.user ++ "]"
@@ -52,6 +57,8 @@ instance fromJSONDB :: FromJSON DB where
 instance toJSONDB :: ToJSON DB where
   toJSON (DB { votes: m, user: n }) = object ["_votes" .= toJSON m, "_user" .= n]
 
+
+type Votes = M.Map String (Tuple Vote String)
 
 data Vote = Yay | Nay | Abstain
 
@@ -99,18 +106,19 @@ newUserName e = case read $ toForeign e of
 
 -- voting statistics
 
-countVotes :: Vote -> M.Map String Vote -> Int
-countVotes v m = L.length (L.filter (\(Tuple _ v') -> v' == v) (M.toList m))
+countVotes :: Vote -> Votes -> Int
+countVotes v m = L.length (L.filter (\(Tuple _ (Tuple v' _)) -> v' == v) (M.toList m))
 
 
 -- render function
 
 render :: T.Render _ DB _ DBAction
-render ctx (DB s) _ _ = T.div' [outcome, buttons]
+render ctx db@(DB s) _ _ = T.div' [outcome, buttons]
   where
   outcome :: T.Html _
   outcome = T.div'
-    [ T.table'
+    [ T.pre' [ T.text ("raw state: " ++ encode db) ]
+    , T.table'
       [ T.tr' [ T.td' [ T.text "current user:" ]
               , T.td' [ T.textarea (T.onChange ctx newUserName <>
                                     A.value s.user <>
@@ -132,9 +140,17 @@ render ctx (DB s) _ _ = T.div' [outcome, buttons]
               ]
       , T.tr' [ T.td' [ T.text "individual votes:" ]
               , T.td' [ T.table'
-                  let f (Tuple u v) = T.tr' [ T.td' [ T.text u ], T.td' [ T.text (show v) ] ]
-                  in [ T.tr' [ T.th' [ T.text "user" ], T.th' [ T.text "vote" ] ] ] ++
-                     (f <$> L.fromList (M.toList s.votes))
+                  let h = T.tr'
+                        [ T.th' [ T.text "user" ]
+                        , T.th' [ T.text "vote" ]
+                        , T.th' [ T.text "timestamp" ]
+                        ]
+                      f (Tuple u (Tuple v t)) = T.tr'
+                        [ T.td' [ T.text u ]
+                        , T.td' [ T.text (show v) ]
+                        , T.td' [ T.text (show t) ]
+                        ]
+                  in [ h ] ++ (f <$> L.fromList (M.toList s.votes))
                 ]
 
                 -- FIXME: if this list grows shorter (because voters withdraw their votes), dangling
@@ -155,8 +171,10 @@ render ctx (DB s) _ _ = T.div' [outcome, buttons]
 
 performAction :: T.PerformAction _ DB _ DBAction
 performAction _ dbAction = do
+  timestamp <- T.sync getTime
+
   let upd (DB o) = case dbAction of
-        ChangeVote v  -> DB o { votes = M.insert o.user v o.votes }
+        ChangeVote v  -> DB o { votes = M.insert o.user (Tuple v timestamp) o.votes }
         DropVote      -> DB o { votes = M.delete o.user o.votes }
         NewUserName n -> DB o { user = n }
 

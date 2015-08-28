@@ -51,7 +51,7 @@ htmlPath = "./public_html"
 
 -- * data types
 
-data DB = DB { _votes :: M.Map String Vote, _user :: String }
+data DB = DB { _votes :: M.Map String (Vote, String), _user :: String }
   deriving (Eq, Show, Typeable, Generic)
 
 data Vote = Yay | Nay | Abstain
