@@ -6,10 +6,11 @@ import Control.Monad.Eff.Class
 import Control.Monad.Eff.Console
 import Control.Monad.Eff.Exception (throwException)
 import Data.Either
-import Data.Foreign hiding (parseJSON)
 import Data.Foreign.Class
+import Data.Foreign hiding (parseJSON)
 import Data.JSON
 import Data.Maybe
+import Data.Tuple
 import Network.HTTP.Affjax
 import Network.HTTP.Affjax.Request
 import Network.HTTP.Affjax.Response
@@ -19,6 +20,7 @@ import Network.HTTP.MimeType.Common
 import Network.HTTP.RequestHeader
 import Prelude
 
+import qualified Data.List as L
 import qualified Data.Map as M
 import qualified Thermite.Action as T
 import qualified Thermite as T
@@ -52,6 +54,12 @@ instance toJSONDB :: ToJSON DB where
 
 
 data Vote = Yay | Nay | Abstain
+
+instance eqVote :: Eq Vote where
+  eq Yay     Yay     = true
+  eq Nay     Nay     = true
+  eq Abstain Abstain = true
+  eq _       _       = false
 
 instance showVote :: Show Vote where
   show Yay = "Yay"
@@ -89,17 +97,43 @@ newUserName e = case read $ toForeign e of
   Right (TextAreaEvent n) -> NewUserName n
 
 
+-- voting statistics
+
+countVotes :: Vote -> M.Map String Vote -> Int
+countVotes v m = L.length (L.filter (\(Tuple _ v') -> v' == v) (M.toList m))
+
+
 -- render function
 
 render :: T.Render _ DB _ DBAction
-render ctx s _ _ = T.div' [outcome, username, buttons]
+render ctx (DB s) _ _ = T.div' [outcome, username, buttons]
   where
   outcome :: T.Html _
-  outcome =
-    T.p'
-      [ T.text "Value: "
-      , T.text $ show s
+  outcome = T.div'
+    [ T.table'
+      [ T.tr' [ T.td' [ T.text "current user:" ]
+              , T.td' [ T.text s.user ] ]
+      , T.tr' [ T.td' [ T.text "aggregated:" ]
+              , T.td' [ T.table'
+                  [ T.tr' [ T.td' [ T.text "Yay" ],     T.td' [ T.text (show (countVotes Yay     s.votes)) ] ]
+                  , T.tr' [ T.td' [ T.text "Nay" ],     T.td' [ T.text (show (countVotes Nay     s.votes)) ] ]
+                  , T.tr' [ T.td' [ T.text "Abstain" ], T.td' [ T.text (show (countVotes Abstain s.votes)) ] ]
+                  ]
+                ]
+              ]
+      , T.tr' [ T.td' [ T.text "individual votes:" ]
+              , T.td' [ T.table'
+                  let f (Tuple u v) = T.tr' [ T.td' [ T.text u ], T.td' [ T.text (show v) ] ]
+                  in [ T.tr' [ T.th' [ T.text "user" ], T.th' [ T.text "vote" ] ] ] ++
+                     (f <$> L.fromList (M.toList s.votes))
+                ]
+
+                -- FIXME: if this list grows shorter (because voters withdraw their votes), dangling
+                -- noise is not deleted properly in the rendering.
+
+              ]
       ]
+    ]
 
   username :: T.Html _
   username =

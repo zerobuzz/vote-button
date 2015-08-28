@@ -1,3 +1,13 @@
 body {
     font-family: sans-serif;
 }
+
+table {
+    padding: 1px;
+
+}
+
+td {
+    border: 1px;
+    background: lightgreen;
+}
