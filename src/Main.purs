@@ -180,7 +180,7 @@ performAction _ dbAction = do
 
   newState <- upd <$> T.getState
   T.setState newState
-  T.async $ \cb -> runAff throwException return (putState newState) >>= cb
+  T.sync $ runAff throwException return (putState newState)
 
 
 -- backend communication
