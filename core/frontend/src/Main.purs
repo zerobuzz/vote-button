@@ -31,6 +31,9 @@ import qualified Thermite.Html.Elements as T
 import qualified Thermite.Types as T
 
 
+-- next:
+--    - make it a service, and write a client app (backend and frontend).
+--    - tests.
 -- next: implement delegation.  it's all very simple.
 -- next: visualize delegation graph (d3).
 
