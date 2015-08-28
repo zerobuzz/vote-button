@@ -37,6 +37,8 @@ import Servant.API
 import Servant.Server
 import Servant.Utils.StaticFiles (serveDirectory)
 
+import qualified Data.Map as M
+
 
 -- * config
 
@@ -49,7 +51,10 @@ htmlPath = "./public_html"
 
 -- * data types
 
-data DB = DB { _counter :: Double, _user :: String }
+data DB = DB { _votes :: M.Map String Vote, _user :: String }
+  deriving (Eq, Show, Typeable, Generic)
+
+data Vote = Yay | Nay | Abstain
   deriving (Eq, Show, Typeable, Generic)
 
 type St = AcidState DB
@@ -57,13 +62,18 @@ type St = AcidState DB
 instance FromJSON DB
 instance ToJSON DB
 
+instance FromJSON Vote
+instance ToJSON Vote
+
 makeLenses ''DB
 $(deriveSafeCopy 0 'base ''DB)
+$(deriveSafeCopy 0 'base ''Vote)
+
 
 -- * persistence
 
 openDB :: IO St
-openDB = openLocalStateFrom dbPath (DB 0 "")
+openDB = openLocalStateFrom dbPath (DB M.empty "")
 
 getDB :: Query DB DB
 getDB = ask
