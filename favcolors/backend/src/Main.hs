@@ -22,7 +22,7 @@ module Main where
 import Control.Applicative ((<$>))
 import Control.Lens (makeLenses, (^.), (%~), (.~))
 import Control.Monad.Reader (ask)
-import Control.Monad.State (modify)
+import Control.Monad.State (modify, get)
 import Control.Monad.Trans.Either
 import Data.Acid
 import Data.Acid.Advanced
@@ -78,11 +78,15 @@ changeUser u = modify $ user .~ u
 getColors :: Query DB [String]
 getColors = (^. colors) <$> ask
 
-addColor :: String -> Update DB ()
-addColor c = modify $ colors %~ (nub . (c:))
+addColor :: String -> Update DB [String]
+addColor c = do
+  modify $ colors %~ (nub . (c:))
+  (^. colors) <$> get
 
-dropColor :: String -> Update DB ()
-dropColor c = modify $ colors %~ (\\ [c])
+dropColor :: String -> Update DB [String]
+dropColor c = do
+  modify $ colors %~ (\\ [c])
+  (^. colors) <$> get
 
 $(makeAcidic ''DB ['getUser, 'changeUser, 'getColors, 'addColor, 'dropColor])
 
@@ -100,8 +104,8 @@ type RestUser =
 
 type RestColors =
        Get '[JSON] [String]
-  :<|> Capture "addcolor" String :> Post '[JSON] ()
-  :<|> Capture "dropcolor" String :> Delete '[JSON] ()
+  :<|> Capture "addcolor" String :> Post '[JSON] [String]
+  :<|> Capture "dropcolor" String :> Delete '[JSON] [String]
 
 rest :: St -> Server Rest
 rest state = restUser state :<|> restColor state :<|> serveDirectory htmlPath

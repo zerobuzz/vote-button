@@ -33,34 +33,46 @@ import qualified Thermite.Types as T
 
 -- state types
 
-data DB = DB { colors :: Array String, user :: String, userChanges :: String }
+data DB = DB
+  { colors :: Array String
+  , user :: String
+  , userChanges :: String
+  , newColor :: String
+  }
 
 instance showDB :: Show DB where
-  show (DB o) = "[" ++ show o.colors ++ "][" ++ show o.user ++ "][" ++ show o.userChanges ++ "]"
+  show (DB o) = "[" ++ show o.colors ++ "][" ++ show o.user ++ "][" ++ show o.userChanges ++ "][" ++ show o.newColor ++ "]"
 
 instance fromJSONDB :: FromJSON DB where
   parseJSON (JObject o) = do
-    i  <- o .: "_colors"
-    n  <- o .: "_user"
-    n' <- o .: "_userChanges"
-    return $ DB { colors: i, user: n, userChanges: n' }
+    i  <- o .: "colors"
+    n  <- o .: "user"
+    n' <- o .: "userChanges"
+    c  <- o .: "newColor"
+    return $ DB { colors: i, user: n, userChanges: n', newColor: c }
   parseJSON _ = fail "DB parse failed."
 
 instance toJSONDB :: ToJSON DB where
-  toJSON (DB { colors: m, user: n, userChanges: n' }) = object ["_colors" .= toJSON m, "_user" .= n, "_userChanges" .= n']
+  toJSON (DB { colors: m, user: n, userChanges: n', newColor: c }) =
+    object ["colors" .= toJSON m, "user" .= n, "userChanges" .= n', "newColor" .= c]
 
 
 initialState :: DB
-initialState = DB { colors: [], user: "", userChanges: "" }
+initialState = DB { colors: [], user: "", userChanges: "", newColor: "" }
 
 
 -- action types
 
 data DBAction = UserNameKeyPress Int | UserChanges String
+              | NewColorKeyPress Int | NewColorChanges String
+              | DropColor String
 
 instance showDBAction :: Show DBAction where
   show (UserNameKeyPress k) = "UserNameKeyPress " ++ show k
   show (UserChanges n')     = "UserChanges " ++ show n'
+  show (NewColorKeyPress k) = "NewColorKeyPress " ++ show k
+  show (NewColorChanges c)  = "NewColorChanges " ++ show c
+  show (DropColor c)        = "DropColor " ++ show c
 
 foreign import getValue :: forall event. event -> String
 foreign import getKeyCode :: T.KeyboardEvent -> Int
@@ -76,7 +88,7 @@ render ctx db@(DB s) _ _ = T.div' [outcome]
     [ T.pre' [ T.text ("raw state: " ++ encode db)  ]
     , T.table'
       [ T.tr' [ T.td' [ T.text "current user:" ]
-              , T.td' [ T.text (s.user)
+              , T.td' [ T.text ("[" ++ s.user ++ "]")
                       , T.br' []
                       , T.text "change: "
                       , T.input (A.className "form-control"
@@ -88,17 +100,30 @@ render ctx db@(DB s) _ _ = T.div' [outcome]
                                 []
                       ]
               ]
+      , T.tr' [ T.td' [ T.text "add new color:" ]
+              , T.td' [ T.input (A.className "form-control"
+                              <> A.placeholder s.newColor
+                              <> A.value s.newColor
+                              <> T.onKeyUp ctx (NewColorKeyPress <<< getKeyCode)
+                              <> T.onChange ctx (NewColorChanges <<< getValue)
+                                )
+                                []
+                      ]
+              ]
       , T.tr' [ T.td' [ T.text "favorite color candidates:" ]
               , T.td' [ T.table'
                   let h = T.tr'
                         [ T.th' [ T.text "color" ]
                         , T.th' [ T.text "vote" ]
                         , T.th' [ T.text "score" ]
+                        , T.th' [ T.text "" ]
                         ]
                       f c = T.tr'
                         [ T.td' [ T.text c ]
                         , T.td' [ ]
                         , T.td' [ ]
+                        , T.td' [ T.a (A.title "remove" <> T.onClick ctx (\_ -> DropColor c))
+                                      [ T.text "[X]" ] ]
                         ]
                   in [ h ] ++ (f <$> s.colors)
                 ]
@@ -119,13 +144,42 @@ performAction _ ev = do
     UserNameKeyPress k -> do
       case k of
         13 -> do
-          T.modifyState $ \(DB o) -> DB (o { user = o.userChanges })
+          resetUser
           T.getState >>= \(DB o) -> T.sync $ runAff throwException return (changeUser o.user)
         27 -> do
-          T.modifyState $ \(DB o) -> DB (o { userChanges = o.user })
+          resetUserChanges
         _  -> return unit
     UserChanges n' -> do
-      T.modifyState $ \(DB o) -> DB (o { userChanges = n' })
+      updateUserChanges n'
+
+    NewColorKeyPress k -> do
+      case k of
+        13 -> do
+          newColor <- (\(DB o) -> o.newColor) <$> T.getState
+          T.async (\cb -> runAff throwException cb (updateColor POST newColor)) >>= updateColors
+          T.modifyState (\(DB o) -> DB (o { newColor = "" }))
+        27 -> do
+          T.modifyState $ \(DB o) -> DB (o { newColor = "" })
+        _  -> return unit
+    NewColorChanges c -> do
+      updateNewColor c
+    DropColor c -> do
+      T.async (\cb -> runAff throwException cb (updateColor DELETE c)) >>= updateColors
+
+resetUser :: T.Action _ DB Unit
+resetUser = T.modifyState $ \(DB o) -> DB (o { user = o.userChanges })
+
+resetUserChanges :: T.Action _ DB Unit
+resetUserChanges = T.modifyState $ \(DB o) -> DB (o { userChanges = o.user })
+
+updateUserChanges :: String -> T.Action _ DB Unit
+updateUserChanges n' = T.modifyState $ \(DB o) -> DB (o { userChanges = n' })
+
+updateNewColor :: String -> T.Action _ DB Unit
+updateNewColor c = T.modifyState $ \(DB o) -> DB (o { newColor = c })
+
+updateColors :: Array String -> T.Action _ DB Unit
+updateColors cs = T.modifyState $ \(DB o) -> DB (o { colors = cs })
 
 
 -- backend communication
@@ -140,10 +194,16 @@ getColors = do
     Left e  -> []  -- (See FIXME, same place, in vote-button core package)
     Right v -> v
 
+updateColor :: forall ajax eff . Method -> String -> Aff (ajax :: AJAX | eff) (Array String)
+updateColor meth colr = do
+  res <- affjax defaultRequest' { url = "/colors/" ++ colr, method = meth }
+  liftEff <<< log $ "updateColor: " ++ res.response  -- without this, type error!
+  return case eitherDecode res.response of
+    Left e -> []  -- (see above)
+    Right v -> v
+
 getInitialState :: forall ajax eff . Aff (ajax :: AJAX | eff) DB
-getInitialState = do
-  colors <- getColors
-  return (case initialState of \(DB o) -> DB (o { colors = colors }))
+getInitialState = (\ clrs -> case initialState of (DB o) -> DB (o { colors = clrs })) <$> getColors
 
 changeUser :: forall ajax eff . String -> Aff (ajax :: AJAX | eff) Unit
 changeUser uname = do
