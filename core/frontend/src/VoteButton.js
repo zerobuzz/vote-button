@@ -1,7 +1,7 @@
 /* global exports */
 "use strict";
 
-// module Main
+// module VoteButton
 
 exports.getTime = function() {
     return new Date().getTime().toString();

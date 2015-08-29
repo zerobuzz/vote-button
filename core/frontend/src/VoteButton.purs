@@ -1,4 +1,4 @@
-module Main where
+module VoteButton where
 
 import Control.Monad.Aff
 import Control.Monad.Eff
