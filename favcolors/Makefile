@@ -31,7 +31,7 @@ run-backend:
 	cd backend && $(CABAL_SANDBOX)/bin/favcolors
 
 clean:
-	rm -rf $(TARGET)/output.js ./output/
+	rm -rf $(TARGET)/output.js ./frontend/output/
 	cd ./frontend/bower_components && export PATH=$(PATH):../node_modules/.bin && ( pulp dep uninstall * || true )
 
 
