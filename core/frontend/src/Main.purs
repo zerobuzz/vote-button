@@ -119,31 +119,31 @@ render :: T.Render _ DB _ DBAction
 render ctx db@(DB s) _ _ = T.div' [outcome, buttons]
   where
   outcome :: T.Html _
-  outcome = T.div'
+  outcome = T.div (A.className "container")
     [ T.pre' [ T.text ("raw state: " ++ encode db) ]
     , T.table'
-      [ T.tr' [ T.td' [ T.text "current user:" ]
+      [ T.tbody' [ T.tr' [ T.td' [ T.text "current user:" ]
               , T.td' [ T.textarea (T.onChange ctx newUserName <>
                                     A.value s.user <>
                                     A.rows "1") []
                       ]
-              ]
-      , T.tr' [ T.td' [ T.text "aggregated:" ]
+              ]]
+      , T.tbody' [ T.tr' [ T.td' [ T.text "aggregated:" ]
               , T.td' [ T.table'
-                  [ T.tr' [ T.th' [ T.text "Yay" ]
-                          , T.th' [ T.text "Nay" ]
-                          , T.th' [ T.text "Abstain" ]
-                          ]
+                  [ T.thead' [ T.th' [ T.text "Yay" ]
+                             , T.th' [ T.text "Nay" ]
+                             , T.th' [ T.text "Abstain" ]
+                             ]
 
-                  , T.tr' [ T.td' [ T.text (show (countVotes Yay     s.votes)) ]
-                          , T.td' [ T.text (show (countVotes Nay     s.votes)) ]
-                          , T.td' [ T.text (show (countVotes Abstain s.votes)) ] ]
+                  , T.tbody' [ T.tr' [ T.td' [ T.text (show (countVotes Yay     s.votes)) ]
+                                     , T.td' [ T.text (show (countVotes Nay     s.votes)) ]
+                                     , T.td' [ T.text (show (countVotes Abstain s.votes)) ] ] ]
                   ]
                 ]
-              ]
-      , T.tr' [ T.td' [ T.text "individual votes:" ]
+              ]]
+      , T.tbody' [ T.tr' [ T.td' [ T.text "individual votes:" ]
               , T.td' [ T.table'
-                  let h = T.tr'
+                  let h = T.thead'
                         [ T.th' [ T.text "user" ]
                         , T.th' [ T.text "vote" ]
                         , T.th' [ T.text "timestamp" ]
@@ -153,7 +153,7 @@ render ctx db@(DB s) _ _ = T.div' [outcome, buttons]
                         , T.td' [ T.text (show v) ]
                         , T.td' [ T.text (show t) ]
                         ]
-                  in [ h ] ++ (f <$> L.fromList (M.toList s.votes))
+                  in [h, T.tbody' $ f <$> L.fromList (M.toList s.votes)]
                 ]
 
                 -- FIXME: if this list grows shorter (because voters withdraw their votes), dangling
@@ -161,7 +161,7 @@ render ctx db@(DB s) _ _ = T.div' [outcome, buttons]
                 -- this bug is sometimes hard to reproduce.  but it'll be back, be patient.
                 -- possibly related: http://blog.arkency.com/2014/10/react-dot-js-and-dynamic-children-why-the-keys-are-important/
 
-              ]
+              ]]
       ]
     ]
 
