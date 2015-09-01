@@ -2,7 +2,7 @@
   "name": "vote-button",
   "version": "0.1.0",
   "moduleType": [
-    "node"
+    "amd", "globals", "node"
   ],
   "ignore": [
     "**/.*",

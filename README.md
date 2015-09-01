@@ -5,6 +5,26 @@
 
 
 
+(first attempt at an intro)
+---------------------------
+
+VoteButton provides js functions that create the dom elements that
+have all the event handlers already installed.  these functions take:
+
+1. a callback `getCredentials` that may call the backend and
+   asynchronously produce the voting details signed off by the backend
+   (see below).
+2. a voteObject structure that describes what is voted on (just a
+   colour name, for now.  possibly this is completely opaque to
+   VoteButton and can be managed by the app.
+3. a user id.
+
+all the rest of the action is handled by the service, for now.
+
+the app only needs to make a bigger effort if it wants things to
+happen like vote-based sorting and searching.
+
+
 Installation
 ------------
 
