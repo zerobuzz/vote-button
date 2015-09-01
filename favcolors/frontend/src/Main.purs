@@ -5,6 +5,7 @@ import Control.Monad.Eff
 import Control.Monad.Eff.Class
 import Control.Monad.Eff.Console
 import Control.Monad.Eff.Exception (throwException)
+import Data.Array (zipWith, range, length)
 import Data.Either
 import Data.Foreign.Class
 import Data.Foreign hiding (parseJSON)
@@ -112,20 +113,22 @@ render ctx db@(DB s) _ _ = T.div' [outcome]
               ]
       , T.tr' [ T.td' [ T.text "favorite color candidates:" ]
               , T.td' [ T.table'
-                  let h = T.tr'
+                  let h :: T.Html _
+                      h = T.tr'
                         [ T.th' [ T.text "color" ]
                         , T.th' [ T.text "vote" ]
                         , T.th' [ T.text "score" ]
                         , T.th' [ T.text "" ]
                         ]
-                      f c = T.tr'
+                      f :: Int -> String -> T.Html _
+                      f i c = T.tr (A.key (show i))
                         [ T.td' [ T.text c ]
                         , T.td' [ ]
                         , T.td' [ ]
                         , T.td' [ T.a (A.title "remove" <> T.onClick ctx (\_ -> DropColor c))
                                       [ T.text "[X]" ] ]
                         ]
-                  in [ h ] ++ (f <$> s.colors)
+                  in [ h ] ++ (zipWith f (range 0 (length s.colors - 1)) s.colors)
                 ]
 
                 -- (See FIXME, same place, in vote-button core package)
