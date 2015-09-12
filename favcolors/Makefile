@@ -1,7 +1,7 @@
 PSC=./node_modules/.bin/psc
 PULP=./node_modules/.bin/pulp
 TARGET=./backend/public_html
-CABAL_SANDBOX=../../.cabal-sandbox
+CABAL_SANDBOX=./.cabal-sandbox
 
 default: build-quick
 
