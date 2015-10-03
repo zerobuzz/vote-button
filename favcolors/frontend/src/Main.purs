@@ -1,15 +1,18 @@
 module Main where
 
 import Control.Monad.Aff
+import Control.Monad.Aff.Class
 import Control.Monad.Eff
 import Control.Monad.Eff.Class
-import Control.Monad.Eff.Console
-import Control.Monad.Eff.Exception (throwException)
+import Control.Monad.Eff.Console hiding (error)
+import Control.Monad.Eff.Exception  -- (EXCEPTION, throwException)
+import Control.Monad.Free (Free())
 import Data.Array (zipWith, range, length)
 import Data.Either
 import Data.Foreign.Class
+import Data.Int (round)
 import Data.Foreign hiding (parseJSON)
-import Data.JSON
+import Data.JSON (encode)
 import Data.Maybe
 import Data.Tuple
 import Network.HTTP.Affjax
@@ -23,206 +26,156 @@ import Prelude
 
 import qualified Data.List as L
 import qualified Data.Map as M
-import qualified Thermite.Action as T
-import qualified Thermite as T
-import qualified Thermite.Events as T
-import qualified Thermite.Html as T
-import qualified Thermite.Html.Attributes as A
-import qualified Thermite.Html.Elements as T
-import qualified Thermite.Types as T
+import qualified Halogen as H
+import qualified Halogen.HTML.Events.Indexed as HE
+import qualified Halogen.HTML.Events.Types as HE
+import qualified Halogen.HTML.Indexed as HH
+import qualified Halogen.HTML.Properties.Indexed as HP
+import qualified Halogen.Query as H
+import qualified Halogen.Util as HU
 
+import Types
 
--- state types
-
-data DB = DB
-  { colors :: Array String
-  , user :: String
-  , userChanges :: String
-  , newColor :: String
-  }
-
-instance showDB :: Show DB where
-  show (DB o) = "[" ++ show o.colors ++ "][" ++ show o.user ++ "][" ++ show o.userChanges ++ "][" ++ show o.newColor ++ "]"
-
-instance fromJSONDB :: FromJSON DB where
-  parseJSON (JObject o) = do
-    i  <- o .: "colors"
-    n  <- o .: "user"
-    n' <- o .: "userChanges"
-    c  <- o .: "newColor"
-    return $ DB { colors: i, user: n, userChanges: n', newColor: c }
-  parseJSON _ = fail "DB parse failed."
-
-instance toJSONDB :: ToJSON DB where
-  toJSON (DB { colors: m, user: n, userChanges: n', newColor: c }) =
-    object ["colors" .= toJSON m, "user" .= n, "userChanges" .= n', "newColor" .= c]
-
-
-initialState :: DB
-initialState = DB { colors: [], user: "", userChanges: "", newColor: "" }
-
-
--- action types
-
-data DBAction = UserNameKeyPress Int | UserChanges String
-              | NewColorKeyPress Int | NewColorChanges String
-              | DropColor String
-
-instance showDBAction :: Show DBAction where
-  show (UserNameKeyPress k) = "UserNameKeyPress " ++ show k
-  show (UserChanges n')     = "UserChanges " ++ show n'
-  show (NewColorKeyPress k) = "NewColorKeyPress " ++ show k
-  show (NewColorChanges c)  = "NewColorChanges " ++ show c
-  show (DropColor c)        = "DropColor " ++ show c
-
-foreign import getValue :: forall event. event -> String
-foreign import getKeyCode :: T.KeyboardEvent -> Int
+import qualified Rest as Rest
 
 
 -- render function
 
-render :: T.Render _ DB _ DBAction
-render ctx db@(DB s) _ _ = T.div' [outcome]
-  where
-  outcome :: T.Html _
-  outcome = T.div'
-    [ T.pre' [ T.text ("raw state: " ++ encode db)  ]
-    , T.table'
-      [ T.tr' [ T.td' [ T.text "current user:" ]
-              , T.td' [ T.text ("[" ++ s.user ++ "]")
-                      , T.br' []
-                      , T.text "change: "
-                      , T.input (A.className "form-control"
-                              <> A.placeholder s.user
-                              <> A.value s.userChanges
-                              <> T.onKeyUp ctx (UserNameKeyPress <<< getKeyCode)
-                              <> T.onChange ctx (UserChanges <<< getValue)
-                                )
-                                []
-                      ]
-              ]
-      , T.tr' [ T.td' [ T.text "add new color:" ]
-              , T.td' [ T.input (A.className "form-control"
-                              <> A.placeholder s.newColor
-                              <> A.value s.newColor
-                              <> T.onKeyUp ctx (NewColorKeyPress <<< getKeyCode)
-                              <> T.onChange ctx (NewColorChanges <<< getValue)
-                                )
-                                []
-                      ]
-              ]
-      , T.tr' [ T.td' [ T.text "favorite color candidates:" ]
-              , T.td' [ T.table'
-                  let h :: T.Html _
-                      h = T.tr'
-                        [ T.th' [ T.text "color" ]
-                        , T.th' [ T.text "vote" ]
-                        , T.th' [ T.text "score" ]
-                        , T.th' [ T.text "" ]
-                        ]
-                      f :: Int -> String -> T.Html _
-                      f i c = T.tr (A.key (show i))
-                        [ T.td' [ T.text c ]
-                        , T.td' [ ]
-                        , T.td' [ ]
-                        , T.td' [ T.a (A.title "remove" <> T.onClick ctx (\_ -> DropColor c))
-                                      [ T.text "[X]" ] ]
-                        ]
-                  in [ h ] ++ (zipWith f (range 0 (length s.colors - 1)) s.colors)
-                ]
+foreign import getValue :: forall event. event -> String
 
-                -- (See FIXME, same place, in vote-button core package)
-
-              ]
-      ]
+render :: forall p. H.Render DB DBAction p
+render db@(DB state) = HH.div_
+    [ HH.pre_ [ HH.text ("raw state: " ++ encode db)  ]
+    , HH.table_
+      [ HH.tr_ [ HH.td_ [ HH.text "current user:" ]
+               , HH.td_ [ HH.text ("[" ++ state.user ++ "]")
+                        , HH.br_
+                        , HH.text "change: "
+                        , HH.input
+                            [ HP.class_ (HH.className "form-control")
+                            , HP.placeholder state.user
+                            , HP.value state.userChanges
+                            , HE.onKeyUp (HE.input UserNameKeyPress <<< \e -> round e.keyCode)
+                            , HE.onChange (HE.input UserChanges <<< \e -> getValue e.target)
+                            ]
+                        ]
+               ]
+      , HH.tr_ [ HH.td_ [ HH.text "add new color:" ]
+               , HH.td_ [ HH.input
+                            [ HP.class_ (HH.className "form-control")
+                            , HP.placeholder state.newColor
+                            , HP.value state.newColor
+                            , HE.onKeyUp (HE.input NewColorKeyPress <<< \e -> round e.keyCode)
+                            , HE.onChange (HE.input NewColorChanges <<< \e -> getValue e.target)
+                            ]
+                       ]
+               ]
+      , HH.tr_ [ HH.td_ [ HH.text "favorite color candidates:" ]
+               , HH.td_ [ HH.table_
+                   let h :: HH.HTML p (DBAction Unit)
+                       h = HH.tr_
+                         [ HH.th_ [ HH.text "color" ]
+                         , HH.th_ [ HH.text "vote" ]
+                         , HH.th_ [ HH.text "score" ]
+                         , HH.th_ [ HH.text "" ]
+                         ]
+                       f :: Int -> String -> HH.HTML p (DBAction Unit)
+                       f i c = HH.tr []  -- FIXME: should be `[ HP.key (show i) ]`
+                         [ HH.td_ [ HH.text c ]
+                         , HH.td_ [ ]
+                         , HH.td_ [ ]
+                         , HH.td_ [ HH.a [ HP.title "remove"
+                                         , HE.onClick (HE.input DropColor <<< \_ -> c)
+                                         ]
+                                       [ HH.text "[X]" ] ]
+                         ]
+                   in [h] ++ zipWith f (range 0 (length state.colors - 1)) state.colors
+                 ]
+               ]
+       ]
     ]
 
 
 -- event handler
 
-performAction :: T.PerformAction _ DB _ DBAction
-performAction _ ev = do
-  T.sync $ log (show ev)
+eval :: forall g ajax err console eff.
+    ( MonadEff (ajax :: AJAX, err :: EXCEPTION, console :: CONSOLE | eff) g
+    , MonadAff (ajax :: AJAX, err :: EXCEPTION, console :: CONSOLE | eff) g
+    )
+    => H.Eval DBAction DB DBAction g
+eval ev = do
+  H.liftEff' $ log (show ev)
   case ev of
-    UserNameKeyPress k -> do
+    UserNameKeyPress k cont -> do
       case k of
         13 -> do
           resetUser
-          T.getState >>= \(DB o) -> T.sync $ runAff throwException return (changeUser o.user)
+          H.get >>= \(DB o) -> H.liftEff' $ runAff throwException return (Rest.changeUser o.user)
         27 -> do
           resetUserChanges
         _  -> return unit
-    UserChanges n' -> do
-      updateUserChanges n'
+      pure cont
 
-    NewColorKeyPress k -> do
+    UserChanges n' cont -> do
+      updateUserChanges n'
+      pure cont
+
+    NewColorKeyPress k cont -> do
       case k of
         13 -> do
-          newColor <- (\(DB o) -> o.newColor) <$> T.getState
-          T.async (\cb -> runAff throwException cb (updateColor POST newColor)) >>= updateColors
-          T.modifyState (\(DB o) -> DB (o { newColor = "" }))
+          newColor <- (\(DB o) -> o.newColor) <$> H.get
+          newColors <- H.liftAff' $ Rest.updateColor POST newColor
+          updateColors newColors
+          H.modify (\(DB o) -> DB (o { newColor = "" }))
         27 -> do
-          T.modifyState $ \(DB o) -> DB (o { newColor = "" })
+          H.modify $ \(DB o) -> DB (o { newColor = "" })
         _  -> return unit
-    NewColorChanges c -> do
+      pure cont
+
+    NewColorChanges c cont -> do
       updateNewColor c
-    DropColor c -> do
-      T.async (\cb -> runAff throwException cb (updateColor DELETE c)) >>= updateColors
+      pure cont
 
-resetUser :: T.Action _ DB Unit
-resetUser = T.modifyState $ \(DB o) -> DB (o { user = o.userChanges })
+    DropColor c cont -> do
+      newColors <- H.liftAff' $ Rest.updateColor DELETE c
+      updateColors newColors
+      pure cont
 
-resetUserChanges :: T.Action _ DB Unit
-resetUserChanges = T.modifyState $ \(DB o) -> DB (o { userChanges = o.user })
+resetUser           :: forall f g.                 Free (H.HalogenF DB f g) Unit
+resetUser            = H.modify $ \(DB o) -> DB (o { user = o.userChanges })
 
-updateUserChanges :: String -> T.Action _ DB Unit
-updateUserChanges n' = T.modifyState $ \(DB o) -> DB (o { userChanges = n' })
+resetUserChanges    :: forall f g.                 Free (H.HalogenF DB f g) Unit
+resetUserChanges     = H.modify $ \(DB o) -> DB (o { userChanges = o.user })
 
-updateNewColor :: String -> T.Action _ DB Unit
-updateNewColor c = T.modifyState $ \(DB o) -> DB (o { newColor = c })
+updateUserChanges   :: forall f g. String       -> Free (H.HalogenF DB f g) Unit
+updateUserChanges n' = H.modify $ \(DB o) -> DB (o { userChanges = n' })
 
-updateColors :: Array String -> T.Action _ DB Unit
-updateColors cs = T.modifyState $ \(DB o) -> DB (o { colors = cs })
+updateNewColor      :: forall f g. String       -> Free (H.HalogenF DB f g) Unit
+updateNewColor c     = H.modify $ \(DB o) -> DB (o { newColor = c })
 
-
--- backend communication
-
-defaultRequest' :: AffjaxRequest Unit
-defaultRequest' = defaultRequest { headers = [ContentType applicationJSON, Accept applicationJSON] }
-
-getColors :: forall ajax eff . Aff (ajax :: AJAX | eff) (Array String)
-getColors = do
-  res <- affjax defaultRequest' { url = "/colors" }
-  return case eitherDecode res.response of
-    Left e  -> []  -- (See FIXME, same place, in vote-button core package)
-    Right v -> v
-
-updateColor :: forall ajax eff . Method -> String -> Aff (ajax :: AJAX | eff) (Array String)
-updateColor meth colr = do
-  res <- affjax defaultRequest' { url = "/colors/" ++ colr, method = meth }
-  liftEff <<< log $ "updateColor: " ++ res.response  -- without this, type error!
-  return case eitherDecode res.response of
-    Left e -> []  -- (see above)
-    Right v -> v
-
-getInitialState :: forall ajax eff . Aff (ajax :: AJAX | eff) DB
-getInitialState = (\ clrs -> case initialState of (DB o) -> DB (o { colors = clrs })) <$> getColors
-
-changeUser :: forall ajax eff . String -> Aff (ajax :: AJAX | eff) Unit
-changeUser uname = do
-  res <- affjax defaultRequest' { url = "/user/" ++ uname, method = PUT }
-  liftEff <<< log $ "changeUser: " ++ res.response  -- without this, type error!
-  return unit
+updateColors        :: forall f g. Array String -> Free (H.HalogenF DB f g) Unit
+updateColors cs      = H.modify $ \(DB o) -> DB (o { colors = cs })
 
 
 -- main
 
-spec :: DB -> T.Spec _ DB _ DBAction
-spec istate = T.simpleSpec istate performAction render
+ui :: forall g p ajax err console eff.
+    ( MonadEff (ajax :: AJAX, err :: EXCEPTION, console :: CONSOLE | eff) g
+    , MonadAff (ajax :: AJAX, err :: EXCEPTION, console :: CONSOLE | eff) g
+    , Functor g
+    )
+    => H.Component DB DBAction g p
+ui = H.component render eval
 
+type AppEffects eff = H.HalogenEffects
+    ( ajax :: AJAX
+    , console :: CONSOLE
+    | eff )
+
+main :: Eff (AppEffects ()) Unit
 main = do
-  runAff throwException
-    (\ istate -> do
-        let component = T.createClass $ spec istate
-        T.render component {})
-    getInitialState
+  log "booting favcolors..."
+  runAff throwException (const (pure unit)) $ do
+    app <- H.runUI ui initialState
+    HU.appendToBody app.node
+    liftEff $ log "done!"
