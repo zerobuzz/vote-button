@@ -28,7 +28,7 @@ happen like vote-based sorting and searching.
 Installation
 ------------
 
-you need to have nodejs and npm installed before you keep on reading.
+you need to have nodejs, npm, purescript, and pulp installed.
 the following should get you going (in three different terminals).
 
 ```
