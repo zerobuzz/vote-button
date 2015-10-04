@@ -16,10 +16,11 @@ version:
 	$(PULP) --version
 
 build-quick:
-	cd frontend && pulp build -O --to ../$(TARGET)/output.js
+	cd frontend && pulp browserify -O --to ../$(TARGET)/output.js
 
 build-deps:
 	cd frontend && pulp dep install
+	npm install virtual-dom#2.0.0
 
 build-all: clean build-deps build-quick
 
@@ -31,4 +32,5 @@ run-backend:
 
 clean:
 	rm -rf $(TARGET)/output.js ./frontend/output/
+	rm -rf ./frontend/node_modules/
 	cd ./frontend/bower_components && ( pulp dep uninstall * || true )
